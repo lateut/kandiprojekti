@@ -3,6 +3,7 @@ import mediapipe as mp
 from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
 import numpy as np
+import time
 
 # ==========================================
 # VAKIOT JA KONFIGURAATIO
@@ -13,9 +14,9 @@ DEFAULT_MODEL = 'pose_landmarker_lite.task'
 SHOULDER_HEIGHT_THRESHOLD = 0.02
 SPINE_SLOPE_THRESHOLD = 1.0
 SHOULDER_ROTATION_THRESHOLD = 20  # asteet
-SHOULDER_FORWARD_THRESHOLD = -30  # Olkapäiden eteenpäin kääntymisen kynnys (negatiivinen = eteenpäin)
+SHOULDER_FORWARD_THRESHOLD = 25  # Olkapäiden eteenpäin kääntymisen kynnys (asteet, absoluuttinen arvo)
 HEAD_TILT_THRESHOLD = 0.03  # Korvien y-koordinaattien ero
-HEAD_FORWARD_THRESHOLD = 0.75  # Pään eteenpäin kääntymisen kynnys (sivunäkymä)
+HEAD_FORWARD_THRESHOLD = 40  # Pään eteenpäin kääntymisen kynnys (asteet)
 
 # Värit (BGR)
 COLOR_SPINE = (0, 255, 0)
@@ -40,6 +41,20 @@ TEXT_THICK = 2
 TEXT_Y_START = 30
 TEXT_Y_STEP = 30
 TEXT_X_START = 10
+
+# Nappien kokoonpano
+BUTTON_X = 10
+BUTTON_Y = 10
+BUTTON_WIDTH = 150
+BUTTON_HEIGHT = 40
+BUTTON_COLOR = (50, 50, 200)
+BUTTON_COLOR_HOVER = (100, 100, 255)
+BUTTON_TEXT_COLOR = (255, 255, 255)
+
+# Globaalit muuttujat tracking tilalle
+tracking_active = False
+start_time = None
+button_rect = None
 
 # ==========================================
 # DETEKTORIN LUONTI
@@ -263,25 +278,43 @@ def draw_head_forward_warning(frame, detection_result, w, h):
         (pose_data['left_shoulder'].x, pose_data['left_shoulder'].y),
         (pose_data['right_shoulder'].x, pose_data['right_shoulder'].y)
     )
+    mid_hip = midpoint_normalized(
+        (pose_data['left_hip'].x, pose_data['left_hip'].y),
+        (pose_data['right_hip'].x, pose_data['right_hip'].y)
+    )
     mid_ear = midpoint_normalized(
         (pose_data['left_ear'].x, pose_data['left_ear'].y),
         (pose_data['right_ear'].x, pose_data['right_ear'].y)
     )
     
-    # Laske pään eteenpäin vektori (hartioilta korviin)
-    head_forward_dx = mid_ear[0] - mid_shoulder[0]
-    head_forward_dy = mid_ear[1] - mid_shoulder[1]
+    # Laske selkärangan vektori (lantiosta hartioihin)
+    spine_dx = mid_shoulder[0] - mid_hip[0]
+    spine_dy = mid_shoulder[1] - mid_hip[1]
     
-    # Jos hartia on vasemmalla ja korva on oikealla (positiivinen dx), pää on kääntynyt eteenpäin
-    # Laske pään etäisyys vertikaalista
-    if head_forward_dy != 0:
-        head_forward_angle = abs(head_forward_dx) / abs(head_forward_dy)
-        
-        if head_forward_angle > HEAD_FORWARD_THRESHOLD:
-            message = "Pää kääntynyt eteenpäin!"
-            y_pos = TEXT_Y_START
-            cv2.putText(frame, message, (TEXT_X_START, y_pos),
-                        TEXT_FONT, TEXT_SIZE, COLOR_ERROR, TEXT_THICK)
+    # Laske pään vektori (hartioista korviin)
+    head_dx = mid_ear[0] - mid_shoulder[0]
+    head_dy = mid_ear[1] - mid_shoulder[1]
+    
+    # Laske näiden vektorien väliset kulmat (arctan2(y, x))
+    spine_angle = np.arctan2(spine_dy, spine_dx)
+    head_angle = np.arctan2(head_dy, head_dx)
+    
+    # Kulman ero radiaaneissa
+    angle_diff_rad = head_angle - spine_angle
+    angle_diff_deg = np.degrees(angle_diff_rad)
+    
+    # Normalisoi välille -180 to 180
+    while angle_diff_deg > 180:
+        angle_diff_deg -= 360
+    while angle_diff_deg < -180:
+        angle_diff_deg += 360
+    
+    # Jos pää on merkittävästi eteenpäin (negatiivinen = eteenpäin selkärangan akselia vastaan)
+    if angle_diff_deg < -HEAD_FORWARD_THRESHOLD:
+        message = "Pää kääntynyt eteenpäin!"
+        y_pos = TEXT_Y_START
+        cv2.putText(frame, message, (TEXT_X_START, y_pos),
+                    TEXT_FONT, TEXT_SIZE, COLOR_ERROR, TEXT_THICK)
 
 
 # ==========================================
@@ -308,8 +341,8 @@ def draw_shoulder_forward_warning(frame, detection_result, w, h):
     # Keskiarvo
     avg_rotation = (left_rotation + right_rotation) / 2
     
-    # Jos olkapäät ovat liian paljon eteenpäin (negatiivinen = eteenpäin)
-    if avg_rotation < SHOULDER_FORWARD_THRESHOLD:
+    # Jos olkapäät ovat liian paljon eteenpäin (käytä absoluuttista arvoa - toimii molempiin suuntiin)
+    if abs(avg_rotation) > SHOULDER_FORWARD_THRESHOLD:
         message = "Olkapäät eteenpäin!"
         y_pos = TEXT_Y_START + TEXT_Y_STEP
         cv2.putText(frame, message, (TEXT_X_START, y_pos),
@@ -317,14 +350,89 @@ def draw_shoulder_forward_warning(frame, detection_result, w, h):
 
 
 def combine_frames(frame1, frame2):
+    """Yhdistää kaksi framea vierekkäin säilyttäen aspect rationum."""
     h1, w1, _ = frame1.shape
     h2, w2, _ = frame2.shape
-    new_h = max(h1, h2)
-    new_w = w1 + w2
-    combined = np.zeros((new_h, new_w, 3), dtype=np.uint8)
-    combined[0:h1, 0:w1] = frame1
-    combined[0:h2, w1:w1+w2] = frame2
+    
+    # Aseta yhteinen korkeus
+    target_h = 720
+    
+    # Skaalaa molemmat framet samaan korkeuteen säilyttäen aspect ratio
+    scale1 = target_h / h1
+    scale2 = target_h / h2
+    
+    frame1_resized = cv2.resize(frame1, (int(w1 * scale1), target_h))
+    frame2_resized = cv2.resize(frame2, (int(w2 * scale2), target_h))
+    
+    # Yhdistä vierekkäin
+    combined = np.hstack((frame1_resized, frame2_resized))
+    
     return combined
+
+
+# ==========================================
+# NAPPI JA KELLO UI
+# ==========================================
+def draw_tracking_button(frame):
+    """Piirtää tracking start/stop nappin vasempaan ylänurkkaan."""
+    global button_rect
+    
+    button_rect = (BUTTON_X, BUTTON_Y, BUTTON_WIDTH, BUTTON_HEIGHT)
+    
+    # Piirrä nappi
+    cv2.rectangle(frame, (BUTTON_X, BUTTON_Y), 
+                  (BUTTON_X + BUTTON_WIDTH, BUTTON_Y + BUTTON_HEIGHT),
+                  BUTTON_COLOR, -1)
+    cv2.rectangle(frame, (BUTTON_X, BUTTON_Y), 
+                  (BUTTON_X + BUTTON_WIDTH, BUTTON_Y + BUTTON_HEIGHT),
+                  (255, 255, 255), 2)
+    
+    # Nappin teksti
+    button_text = "Stop Tracking" if tracking_active else "Start Tracking"
+    text_size = cv2.getTextSize(button_text, TEXT_FONT, 0.5, 1)[0]
+    text_x = BUTTON_X + (BUTTON_WIDTH - text_size[0]) // 2
+    text_y = BUTTON_Y + (BUTTON_HEIGHT + text_size[1]) // 2
+    cv2.putText(frame, button_text, (text_x, text_y),
+                TEXT_FONT, 0.5, BUTTON_TEXT_COLOR, 1)
+
+
+def draw_timer(frame, w, h):
+    """Piirtää kellon oikeaan alanurkkkaan."""
+    if not tracking_active or start_time is None:
+        elapsed_time = 0
+    else:
+        elapsed_time = int(time.time() - start_time)
+    
+    minutes = elapsed_time // 60
+    seconds = elapsed_time % 60
+    time_text = f"{minutes:02d}:{seconds:02d}"
+    
+    # Tekstin koko ja sijainti
+    text_size = cv2.getTextSize(time_text, TEXT_FONT, 1.5, 2)[0]
+    text_x = w - text_size[0] - 20
+    text_y = h - 20
+    
+    # Piirrä teksti mustalla taustalla
+    cv2.rectangle(frame, (text_x - 10, text_y - text_size[1] - 10),
+                  (w - 10, h), (0, 0, 0), -1)
+    cv2.putText(frame, time_text, (text_x, text_y),
+                TEXT_FONT, 1.5, (0, 255, 0), 2)
+
+
+def mouse_callback(event, x, y, flags, param):
+    """Hiiren click callback nappia varten."""
+    global tracking_active, start_time
+    
+    if event == cv2.EVENT_LBUTTONDOWN and button_rect is not None:
+        bx, by, bw, bh = button_rect
+        # Tarkista, onko klikkaus napin sisällä
+        if bx <= x <= bx + bw and by <= y <= by + bh:
+            tracking_active = not tracking_active
+            if tracking_active:
+                start_time = time.time()
+            else:
+                start_time = None
+
 
 def process_camera_frame(frame, detector, timestamp, is_side_view=False):
     """Käsittelee yksittäisen kamerakehyksen."""
@@ -359,6 +467,11 @@ def main():
 
     timestamp_front = 0
     timestamp_side = 0
+    
+    # Luo ikkuna ja aseta mouse callback
+    window_name = "Posture Analysis (EdgeAI)"
+    cv2.namedWindow(window_name)
+    cv2.setMouseCallback(window_name, mouse_callback)
 
     while cap_front.isOpened() and cap_side.isOpened():
         ret_f, frame_front = cap_front.read()
@@ -379,11 +492,17 @@ def main():
 
         # Yhdistetään ja näytetään
         combined = combine_frames(annotated_front, annotated_side)
-        cv2.imshow("Posture Analysis (EdgeAI)", combined)
+        
+        # Piirä UI-elementit
+        draw_tracking_button(combined)
+        h, w, _ = combined.shape
+        draw_timer(combined, w, h)
+        
+        cv2.imshow(window_name, combined)
 
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
-        if cv2.getWindowProperty("Posture Analysis (EdgeAI)", cv2.WND_PROP_VISIBLE) < 1:
+        if cv2.getWindowProperty(window_name, cv2.WND_PROP_VISIBLE) < 1:
             break
 
     cap_front.release()
