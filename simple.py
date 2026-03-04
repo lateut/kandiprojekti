@@ -1,3 +1,5 @@
+import math
+
 import cv2
 import mediapipe as mp
 from mediapipe.tasks import python
@@ -310,7 +312,7 @@ def draw_head_forward_warning(frame, detection_result, w, h):
         angle_diff_deg += 360
     
     # Jos pää on merkittävästi eteenpäin (negatiivinen = eteenpäin selkärangan akselia vastaan)
-    if angle_diff_deg < -HEAD_FORWARD_THRESHOLD:
+    if angle_diff_deg > math.fabs(HEAD_FORWARD_THRESHOLD):
         message = "Pää kääntynyt eteenpäin!"
         y_pos = TEXT_Y_START
         cv2.putText(frame, message, (TEXT_X_START, y_pos),
