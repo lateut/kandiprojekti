@@ -1,11 +1,15 @@
 import math
 
+import ctypes
 import cv2
 import mediapipe as mp
 from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
 import numpy as np
 import time
+
+WINDOW_WIDTH = ctypes.windll.user32.GetSystemMetrics(0)
+WINDOW_HEIGHT = ctypes.windll.user32.GetSystemMetrics(1)
 
 # ==========================================
 # VAKIOT JA KONFIGURAATIO
@@ -492,13 +496,14 @@ def main():
         timestamp_front += 1
         timestamp_side += 1
 
+        annotated_front = cv2.resize(annotated_front, (WINDOW_WIDTH // 2, WINDOW_HEIGHT))
+        annotated_side = cv2.resize(annotated_side, (WINDOW_WIDTH // 2, WINDOW_HEIGHT))
+
         # Yhdistetään ja näytetään
         combined = combine_frames(annotated_front, annotated_side)
-        
         # Piirä UI-elementit
         draw_tracking_button(combined)
-        h, w, _ = combined.shape
-        draw_timer(combined, w, h)
+        draw_timer(combined, WINDOW_WIDTH, WINDOW_HEIGHT)
         
         cv2.imshow(window_name, combined)
 
