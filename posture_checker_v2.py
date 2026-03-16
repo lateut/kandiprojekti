@@ -4,7 +4,7 @@ from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
 import time
 import numpy as np
-import os   # ← lisättiin tämä
+import os
 
 # ───────────────────────────────────────────────
 # Asetukset
@@ -90,6 +90,10 @@ while cap.isOpened():
     frame = cv2.flip(frame, 1)
     h, w, _ = frame.shape
 
+    # Skaalaa kuva parempaan kokoon
+    frame = cv2.resize(frame, (1024, 576))
+    h, w = 576, 1024
+
     # Muunna MediaPipe Imageksi
     rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
     mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_frame)
@@ -100,7 +104,7 @@ while cap.isOpened():
     # Suorita detektio
     detection_result = landmarker.detect_for_video(mp_image, timestamp_ms)
 
-    status_text = "Hyvä ryhti!"
+    status_text = "ryhti ok"
     color = (0, 255, 0)
     warning = ""
 
@@ -141,8 +145,8 @@ while cap.isOpened():
                     bad_counter += 1
                     color = (0, 0, 255)
                     status_text = "HUONO RYHTI!"
-                    if is_raised: warning += "OLKAPÄÄT KOHOLLA! "
-                    if is_close:  warning += "PÄÄ LIIAN LÄHELLÄ! "
+                    # if is_raised: warning += "hartiat liian koholla! "
+                    if is_close:  warning += "paea liian lahellae! "
                 else:
                     bad_counter = max(0, bad_counter - 1)
 
@@ -156,21 +160,26 @@ while cap.isOpened():
 
     # Näytä tila
     cv2.putText(frame, status_text, (50, 150), cv2.FONT_HERSHEY_SIMPLEX, 1.4, color, 3)
-    if warning:
+    if warning and bad_counter <= 35:
         cv2.putText(frame, warning, (50, 200), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 0, 255), 2)
 
     if bad_counter > 35:  # ~1–1.5 s huonoa ryhtiä
-        cv2.putText(frame, "KORJAA RYHTI NYT!", (w//2 - 280, h//2),
+        cv2.putText(frame, "korjaa ryhti", (w//2 - 280, h//2),
                     cv2.FONT_HERSHEY_SIMPLEX, 2.2, (0, 0, 255), 6)
+
+    # Näytä takaisin-nappi
+    # cv2.putText(frame, "Takaisin", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
 
     # FPS + ohjeet
     fps = 1 / (time.time() - prev_time) if (time.time() - prev_time) > 0 else 0
     prev_time = time.time()
     cv2.putText(frame, f"FPS: {int(fps)}", (w - 180, 50),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
-    cv2.putText(frame, "C = kalibroi | Q = lopeta", (50, h - 40),
+    cv2.putText(frame, "C = kalibroi | Q = lopeta | B = takaisin", (50, h - 40),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
 
+    cv2.namedWindow('Posture Checker – MediaPipe Tasks', cv2.WINDOW_NORMAL)
+    cv2.resizeWindow('Posture Checker – MediaPipe Tasks', 1024, 576)
     cv2.imshow('Posture Checker – MediaPipe Tasks', frame)
 
     key = cv2.waitKey(1) & 0xFF
@@ -181,6 +190,8 @@ while cap.isOpened():
         calib_deltas.clear()
         calib_ear_widths.clear()
         print("Kalibrointi aloitettu – istu hyvässä ryhdissä ~2 sekuntia!")
+    elif key == ord('b'):
+        break
 
 cap.release()
 cv2.destroyAllWindows()
