@@ -88,7 +88,7 @@ def process_side_view(frame, detector, timestamp):
 # ───────────────────────────────────────────────
 
 """
-Yksi kamera
+#Yksi kamera
 
 cap_front = cv2.VideoCapture(0)  # Etukamera
 
@@ -125,8 +125,8 @@ while cap_front.isOpened() :
 cap_front.release()
 cv2.destroyAllWindows()
 landmarker.close()
-
 """
+
 cap_front = cv2.VideoCapture(0)  # Etukamera
 cap_side = cv2.VideoCapture(1)   # Sivukamera
 
