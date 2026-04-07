@@ -33,9 +33,13 @@ MODEL_PATH = "pose_landmarker_lite.task"
 PROCESS_W = 640
 PROCESS_H = 360
 
-# Display size
+# Display size (single camera)
 DISPLAY_W = 960
 DISPLAY_H = 540
+
+# Two-camera display size (each camera)
+DISPLAY_W_DUAL = 480
+DISPLAY_H_DUAL = 540
 
 # Side camera index (change if needed)
 SIDE_CAMERA_INDEX = 1
@@ -267,8 +271,11 @@ def analyze_side_view(landmarks, ref_angle=None):
 def resize_for_processing(frame):
     return cv2.resize(frame, (PROCESS_W, PROCESS_H))
 
-def resize_for_display(frame):
-    return cv2.resize(frame, (DISPLAY_W, DISPLAY_H))
+def resize_for_display(frame, dual_camera_mode=False):
+    if dual_camera_mode:
+        return cv2.resize(frame, (DISPLAY_W_DUAL, DISPLAY_H_DUAL))
+    else:
+        return cv2.resize(frame, (DISPLAY_W, DISPLAY_H))
 
 def detect_pose(landmarker, frame_bgr, timestamp_ms):
     rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
@@ -416,6 +423,15 @@ def run_mode(camera_mode=1, action_mode="alert"):
     side_status_hist = []
 
     title = f"Posture Checker - {'Alert' if action_mode == 'alert' else 'Tracking'}"
+    
+    # Set up window size based on camera mode
+    cv2.namedWindow(title, cv2.WINDOW_NORMAL)
+    if actual_mode == 2:
+        # Two camera mode: 480+480=960 width, plus some margin
+        cv2.resizeWindow(title, 1000, 580)
+    else:
+        # Single camera mode
+        cv2.resizeWindow(title, 980, 570)
 
     while True:
         frame_start = time.time()
@@ -427,7 +443,7 @@ def run_mode(camera_mode=1, action_mode="alert"):
 
         frame_f = cv2.flip(frame_f, 1)
         frame_f_proc = resize_for_processing(frame_f)
-        frame_f_show = resize_for_display(frame_f)
+        frame_f_show = resize_for_display(frame_f, dual_camera_mode=(actual_mode == 2))
 
         frame_s_proc = None
         frame_s_show = None
@@ -440,7 +456,7 @@ def run_mode(camera_mode=1, action_mode="alert"):
                 break
             frame_s = cv2.flip(frame_s, 1)
             frame_s_proc = resize_for_processing(frame_s)
-            frame_s_show = resize_for_display(frame_s)
+            frame_s_show = resize_for_display(frame_s, dual_camera_mode=True)
 
         timestamp_ms = int(time.monotonic() * 1000)
 
@@ -534,23 +550,39 @@ def run_mode(camera_mode=1, action_mode="alert"):
         else:
             vis = np.hstack((frame_f_show, frame_s_show))
 
-        # Front text
-        cv2.putText(vis, f"Front: {front_info['status']}", (25, 45),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.85, front_info["color"], 2)
+        # Top-left: Front camera status
+        y_pos = 35
+        cv2.putText(vis, f"Front: {front_info['status']}", (15, y_pos),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.75, front_info["color"], 2)
+        y_pos += 32
         if front_info["warning"]:
-            cv2.putText(vis, front_info["warning"], (25, 80),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.75, (0, 120, 255), 2)
+            cv2.putText(vis, front_info["warning"], (15, y_pos),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.65, (0, 120, 255), 2)
+            y_pos += 28
 
-        # Side text
+        # Top-right: Side camera status or Tracking stats
         if actual_mode == 2:
+            # Dual camera mode: show side camera info on the right
             offset = frame_f_show.shape[1]
-            cv2.putText(vis, f"Side: {side_info['status']}", (25 + offset, 45),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.85, side_info["color"], 2)
+            y_pos = 35
+            cv2.putText(vis, f"Side: {side_info['status']}", (offset + 15, y_pos),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.75, side_info["color"], 2)
+            y_pos += 32
             if side_info["warning"]:
-                cv2.putText(vis, side_info["warning"], (25 + offset, 80),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.75, (0, 120, 255), 2)
+                cv2.putText(vis, side_info["warning"], (offset + 15, y_pos),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.65, (0, 120, 255), 2)
+        else:
+            # Single camera mode: show tracking stats on the right if in tracking mode
+            if action_mode == "tracking":
+                percent = int((bad_time / total_time) * 100) if total_time > 0 else 0
+                y_pos = 35
+                cv2.putText(vis, f"Tracking: {int(total_time)} sec", (vis.shape[1] - 260, y_pos),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 150), 2)
+                y_pos += 32
+                cv2.putText(vis, f"Bad: {int(bad_time)} sec ({percent}%)", (vis.shape[1] - 260, y_pos),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 180, 255), 2)
 
-        # Overall status
+        # Center: Overall status (large text)
         if ref_delta_y is None and not calibrating:
             overall_text = "Press C to calibrate"
             overall_color = (0, 255, 255)
@@ -561,28 +593,36 @@ def run_mode(camera_mode=1, action_mode="alert"):
             overall_text = "BAD POSTURE" if overall_bad else "POSTURE OK"
             overall_color = (0, 0, 255) if overall_bad else (0, 220, 0)
 
-        cv2.putText(vis, overall_text, (25, vis.shape[0] - 110),
+        text_size = cv2.getTextSize(overall_text, cv2.FONT_HERSHEY_SIMPLEX, 1.1, 3)[0]
+        text_x = (vis.shape[1] - text_size[0]) // 2
+        text_y = (vis.shape[0] // 2) + 20
+        cv2.putText(vis, overall_text, (text_x, text_y),
                     cv2.FONT_HERSHEY_SIMPLEX, 1.1, overall_color, 3)
 
         if overall_bad and ref_delta_y is not None:
-            cv2.putText(vis, "Fix your posture", (25, vis.shape[0] - 70),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 0, 255), 2)
+            fix_text = "Fix your posture"
+            fix_size = cv2.getTextSize(fix_text, cv2.FONT_HERSHEY_SIMPLEX, 0.85, 2)[0]
+            fix_x = (vis.shape[1] - fix_size[0]) // 2
+            cv2.putText(vis, fix_text, (fix_x, text_y + 40),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.85, (0, 0, 255), 2)
 
-        # Tracking stats
-        if action_mode == "tracking":
+        # Tracking stats for dual camera mode
+        if actual_mode == 2 and action_mode == "tracking":
             percent = int((bad_time / total_time) * 100) if total_time > 0 else 0
-            cv2.putText(vis, f"Tracking: {int(total_time)} sec", (vis.shape[1] - 280, 45),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.75, (255, 255, 150), 2)
-            cv2.putText(vis, f"Bad posture: {int(bad_time)} sec ({percent}%)", (vis.shape[1] - 380, 80),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.75, (0, 180, 255), 2)
+            y_pos = vis.shape[0] - 95
+            cv2.putText(vis, f"Tracking: {int(total_time)} sec", (15, y_pos),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.65, (255, 255, 150), 2)
+            cv2.putText(vis, f"Bad: {int(bad_time)} sec ({percent}%)", (15, y_pos + 28),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.65, (0, 180, 255), 2)
 
-        # FPS
+        # Bottom-right: FPS
         fps = 1.0 / max(1e-6, time.time() - frame_start)
-        cv2.putText(vis, f"FPS: {int(fps)}", (vis.shape[1] - 150, vis.shape[0] - 25),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+        cv2.putText(vis, f"FPS: {int(fps)}", (vis.shape[1] - 130, vis.shape[0] - 35),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.65, (255, 255, 255), 2)
 
-        cv2.putText(vis, "C=calibrate  B=back to menu  Q=exit", (25, vis.shape[0] - 25),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 200), 2)
+        # Bottom: Instructions
+        cv2.putText(vis, "C=calibrate  B=back  Q=exit", (15, vis.shape[0] - 35),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.65, (255, 255, 200), 2)
 
         cv2.imshow(title, vis)
 
