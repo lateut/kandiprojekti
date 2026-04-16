@@ -226,10 +226,10 @@ def analyze_side_view(landmarks, ref_angle=None):
 
     if ref_angle is not None:
         angle_diff = abs(angle - ref_angle)
-        if angle > 15:  # Allow some tolerance
+        if angle > 20:  # Allow some tolerance
             return {
                 "ok": True,
-                "status": f"side bad ({int(angle)} deg, toine: {int(angle_diff)} deg)",
+                "status": f"side bad ({int(angle)} deg)",
                 "warning": "clear forward head",
                 "color": (0, 0, 255),
                 "bad": True
