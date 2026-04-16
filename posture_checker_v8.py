@@ -8,6 +8,7 @@ import os
 import threading
 import platform
 
+
 # --------------------------------------------------
 # Optional Windows beep
 # --------------------------------------------------
@@ -788,20 +789,20 @@ def cleanup(cap_front, cap_side, landmarker_front, landmarker_side):
         pass
 
 def show_stats(total_time, bad_time):
-    """Näytä seurannan tilastot."""
+    """Display tracking statistics."""
     if total_time <= 0:
         return
     pct = int(bad_time / total_time * 100)
     img = np.zeros((380, 720, 3), np.uint8)
-    cv2.putText(img, "SEURANTA PÄÄTTYI",            (80, 80),  cv2.FONT_HERSHEY_SIMPLEX, 1.5, (0, 255, 200), 3)
-    cv2.putText(img, f"Kokonaisaika:  {int(total_time)} s", (80, 170), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), 2)
-    cv2.putText(img, f"Huono ryhti:   {int(bad_time)} s ({pct} %)", (80, 220), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 180, 255), 2)
-    cv2.putText(img, "Paina mitä tahansa jatkaaksesi", (80, 310), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (180, 180, 255), 1)
-    cv2.namedWindow("Seurannan tulokset", cv2.WINDOW_NORMAL)
-    cv2.resizeWindow("Seurannan tulokset", 720, 380)
-    cv2.imshow("Seurannan tulokset", img)
+    cv2.putText(img, "TRACKING ENDED",            (80, 80),  cv2.FONT_HERSHEY_SIMPLEX, 1.5, (0, 255, 200), 3)
+    cv2.putText(img, f"Total time:  {int(total_time)} s", (80, 170), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), 2)
+    cv2.putText(img, f"Bad posture: {int(bad_time)} s ({pct} %)", (80, 220), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 180, 255), 2)
+    cv2.putText(img, "Press any key to continue", (80, 310), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (180, 180, 255), 1)
+    cv2.namedWindow("Tracking Results", cv2.WINDOW_NORMAL)
+    cv2.resizeWindow("Tracking Results", 720, 380)
+    cv2.imshow("Tracking Results", img)
     cv2.waitKey(0)
-    cv2.destroyWindow("Seurannan tulokset")
+    cv2.destroyWindow("Tracking Results")
 
 # --------------------------------------------------
 # Main
