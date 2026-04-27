@@ -297,9 +297,18 @@ def show_screen(title, lines, width=900, height=600):
     cv2.resizeWindow(title, width, height)
 
     while True:
+        # Dark gradient background
         img = np.zeros((height, width, 3), np.uint8)
-        cv2.putText(img, title, (40, 70), cv2.FONT_HERSHEY_SIMPLEX, 1.2, (220, 220, 50), 3)
-        put_multiline_text(img, lines, start_xy=(40, 140), line_gap=45, scale=0.9, color=(255,255,255), thick=2)
+        img[:] = (12, 18, 28)
+        for i in range(height):
+            img[i, :] = (
+                12 + int(i * 0.04),
+                18 + int(i * 0.06),
+                28 + int(i * 0.08)
+            )
+
+        cv2.putText(img, title, (40, 70), cv2.FONT_HERSHEY_DUPLEX, 1.2, (0, 220, 220), 3)
+        put_multiline_text(img, lines, start_xy=(40, 140), line_gap=45, scale=0.9, color=(220, 225, 235), thick=2)
         cv2.imshow(title, img)
         key = cv2.waitKey(0) & 0xFF
         if key != 255:
@@ -311,25 +320,45 @@ def show_screen(title, lines, width=900, height=600):
 # --------------------------------------------------
 # Menus
 # --------------------------------------------------
+def draw_menu_box(img, x, y, w, h, color, title, desc):
+    """Draw a modern menu option box."""
+    # Box background
+    cv2.rectangle(img, (x, y), (x + w, y + h), (20, 25, 35), -1)
+    # Box border
+    cv2.rectangle(img, (x, y), (x + w, y + h), color, 2)
+    # Number circle
+    cv2.circle(img, (x + 40, y + h//2), 25, color, -1)
+    cv2.circle(img, (x + 40, y + h//2), 25, (20, 25, 35), -1)
+    cv2.circle(img, (x + 40, y + h//2), 22, color, 2)
+    # Title
+    cv2.putText(img, title, (x + 80, y + h//2 - 10), cv2.FONT_HERSHEY_DUPLEX, 0.9, (250, 250, 255), 2)
+    # Description
+    cv2.putText(img, desc, (x + 80, y + h//2 + 20), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (160, 170, 190), 1)
+
 def select_camera_mode():
-    title = "Posture Checker - Start"
+    title = "Posture Checker"
     cv2.namedWindow(title, cv2.WINDOW_NORMAL)
-    cv2.resizeWindow(title, 900, 550)
+    cv2.resizeWindow(title, 800, 500)
 
     while True:
-        img = np.zeros((550, 900, 3), np.uint8)
+        # Dark gradient background
+        img = np.zeros((500, 800, 3), np.uint8)
+        img[:] = (12, 18, 28)
+        for i in range(500):
+            img[i, :] = (
+                12 + int(i * 0.04),
+                18 + int(i * 0.06),
+                28 + int(i * 0.08)
+            )
 
-        cv2.putText(img, "POSTURE CHECKER", (180, 80), cv2.FONT_HERSHEY_SIMPLEX, 1.8, (220, 220, 50), 4)
-        cv2.putText(img, "Choose camera mode", (280, 140), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), 2)
+        # Header
+        cv2.putText(img, "POSTURE CHECKER", (200, 60), cv2.FONT_HERSHEY_DUPLEX, 1.4, (0, 220, 220), 3)
+        cv2.putText(img, "Select camera mode", (260, 100), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (140, 150, 170), 1)
 
-        cv2.putText(img, "1 = One camera", (100, 240), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 255, 200), 2)
-        cv2.putText(img, "    Front webcam only", (150, 280), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (200, 200, 255), 1)
-
-        cv2.putText(img, "2 = Two cameras", (100, 350), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 255, 200), 2)
-        cv2.putText(img, "    Front webcam + side camera", (150, 390), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (200, 200, 255), 1)
-        cv2.putText(img, f"    Side camera index now: {SIDE_CAMERA_INDEX}", (150, 425), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (200, 200, 255), 1)
-
-        cv2.putText(img, "3 = Exit", (100, 490), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 100, 255), 2)
+        # Menu options as cards
+        draw_menu_box(img, 80, 140, 640, 90, (0, 220, 220), "1. One Camera", "Front webcam only")
+        draw_menu_box(img, 80, 250, 640, 90, (120, 200, 255), "2. Two Cameras", "Front + side camera for full analysis")
+        draw_menu_box(img, 80, 360, 640, 90, (255, 160, 80), "3. Exit", "Close the program")
 
         cv2.imshow(title, img)
         key = cv2.waitKey(0) & 0xFF
@@ -345,25 +374,31 @@ def select_camera_mode():
             return 0
 
 def select_action_menu(camera_mode):
-    title = "Posture Checker - Menu"
+    title = "Posture Checker"
     cv2.namedWindow(title, cv2.WINDOW_NORMAL)
-    cv2.resizeWindow(title, 900, 550)
+    cv2.resizeWindow(title, 800, 500)
 
-    cam_text = "One camera mode" if camera_mode == 1 else "Two camera mode"
+    cam_text = "One camera" if camera_mode == 1 else "Two cameras"
 
     while True:
-        img = np.zeros((550, 900, 3), np.uint8)
+        # Dark gradient background
+        img = np.zeros((500, 800, 3), np.uint8)
+        img[:] = (12, 18, 28)
+        for i in range(500):
+            img[i, :] = (
+                12 + int(i * 0.04),
+                18 + int(i * 0.06),
+                28 + int(i * 0.08)
+            )
 
-        cv2.putText(img, "POSTURE CHECKER", (180, 80), cv2.FONT_HERSHEY_SIMPLEX, 1.8, (220, 220, 50), 4)
-        cv2.putText(img, cam_text, (300, 140), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), 2)
+        # Header
+        cv2.putText(img, "POSTURE CHECKER", (200, 60), cv2.FONT_HERSHEY_DUPLEX, 1.4, (0, 220, 220), 3)
+        cv2.putText(img, f"Mode: {cam_text}", (300, 100), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (140, 150, 170), 1)
 
-        cv2.putText(img, "1 = Alert", (100, 240), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 255, 200), 2)
-        cv2.putText(img, "    Beep when posture becomes bad", (150, 280), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (200, 200, 255), 1)
-
-        cv2.putText(img, "2 = Tracking", (100, 350), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 255, 200), 2)
-        cv2.putText(img, "    Count bad posture seconds", (150, 390), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (200, 200, 255), 1)
-
-        cv2.putText(img, "3 = Exit", (100, 470), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 100, 255), 2)
+        # Menu options as cards
+        draw_menu_box(img, 80, 140, 640, 90, (0, 230, 130), "1. Alert Mode", "Beep when posture becomes bad")
+        draw_menu_box(img, 80, 250, 640, 90, (120, 200, 255), "2. Tracking Mode", "Count and display bad posture time")
+        draw_menu_box(img, 80, 360, 640, 90, (255, 160, 80), "3. Back", "Return to camera selection")
 
         cv2.imshow(title, img)
         key = cv2.waitKey(0) & 0xFF
@@ -404,7 +439,8 @@ def select_camera_index(label, candidates):
         cap.release()
         if not ret or frame is None:
             frame = np.zeros((DISPLAY_H, DISPLAY_W, 3), np.uint8)
-            cv2.putText(frame, "No preview available", (40, 100), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 0, 255), 2)
+            frame[:] = (12, 18, 28)
+            cv2.putText(frame, "No signal", (40, 100), cv2.FONT_HERSHEY_DUPLEX, 0.9, (255, 80, 90), 2)
         frame = resize_for_display(frame, dual_camera_mode=False)
         previews.append(frame)
         labels.append(chr(ord('A') + idx))
@@ -415,8 +451,17 @@ def select_camera_index(label, candidates):
         cell_w = previews[0].shape[1]
         cell_h = previews[0].shape[0]
         canvas_w = cols * cell_w
-        canvas_h = rows * cell_h + 120
+        canvas_h = rows * cell_h + 100
+        
+        # Dark gradient background
         canvas = np.zeros((canvas_h, canvas_w, 3), np.uint8)
+        canvas[:] = (12, 18, 28)
+        for i in range(canvas_h):
+            canvas[i, :] = (
+                12 + int(i * 0.04),
+                18 + int(i * 0.06),
+                28 + int(i * 0.08)
+            )
 
         for i, frame in enumerate(previews):
             r = i // cols
@@ -424,11 +469,30 @@ def select_camera_index(label, candidates):
             y = r * cell_h
             x = c * cell_w
             canvas[y:y + cell_h, x:x + cell_w] = frame
-            cv2.putText(canvas, f"Camera {labels[i]}", (x + 20, y + 40), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (240, 240, 0), 2)
+            
+            # Modern label badge
+            cv2.rectangle(canvas, (x + 10, y + 10), (x + 150, y + 55), (20, 25, 35), -1)
+            cv2.rectangle(canvas, (x + 10, y + 10), (x + 150, y + 55), (0, 220, 220), 2)
+            cv2.putText(canvas, f"[{labels[i]}]", (x + 20, y + 38), cv2.FONT_HERSHEY_DUPLEX, 0.8, (0, 220, 220), 2)
 
-        cv2.putText(canvas, f"Select {label} camera", (30, canvas_h - 90), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (220, 220, 50), 2)
-        cv2.putText(canvas, "Press the letter shown on the desired camera", (30, canvas_h - 55), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
-        cv2.putText(canvas, "Press ESC to cancel selection", (30, canvas_h - 25), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 180, 180), 2)
+        # Instructions panel at bottom
+        panel_y = canvas_h - 95
+        cv2.rectangle(canvas, (0, panel_y), (canvas_w, canvas_h), (20, 25, 35), -1)
+        cv2.line(canvas, (0, panel_y), (canvas_w, panel_y), (0, 220, 220), 2)
+        
+        # Centered instructions
+        text1 = f"Select {label} Camera"
+        text2 = "Press [A] [B] [C]... to choose"
+        text3 = "ESC to cancel"
+        
+        # Get text sizes for centering
+        t1_size = cv2.getTextSize(text1, cv2.FONT_HERSHEY_DUPLEX, 0.9, 2)[0]
+        t2_size = cv2.getTextSize(text2, cv2.FONT_HERSHEY_SIMPLEX, 0.7, 1)[0]
+        t3_size = cv2.getTextSize(text3, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 1)[0]
+        
+        cv2.putText(canvas, text1, ((canvas_w - t1_size[0]) // 2, panel_y + 30), cv2.FONT_HERSHEY_DUPLEX, 0.9, (0, 220, 220), 2)
+        cv2.putText(canvas, text2, ((canvas_w - t2_size[0]) // 2, panel_y + 55), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (200, 210, 230), 1)
+        cv2.putText(canvas, text3, ((canvas_w - t3_size[0]) // 2, panel_y + 80), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 160, 80), 1)
 
         cv2.imshow(title, canvas)
         key = cv2.waitKey(0) & 0xFF
@@ -447,7 +511,10 @@ def select_camera_index(label, candidates):
             cv2.destroyWindow(title)
             return candidates[choice]
 
-        cv2.putText(canvas, "Invalid selection, press a valid camera letter.", (30, canvas_h - 25), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
+        # Error message centered
+        err_text = "Invalid selection, try again."
+        err_size = cv2.getTextSize(err_text, cv2.FONT_HERSHEY_SIMPLEX, 0.7, 1)[0]
+        cv2.putText(canvas, err_text, ((canvas_w - err_size[0]) // 2, panel_y + 80), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 80, 90), 1)
         cv2.imshow(title, canvas)
         cv2.waitKey(1000)
 
@@ -793,11 +860,31 @@ def show_stats(total_time, bad_time):
     if total_time <= 0:
         return
     pct = int(bad_time / total_time * 100)
+    
+    # Dark gradient background
     img = np.zeros((380, 720, 3), np.uint8)
-    cv2.putText(img, "TRACKING ENDED",            (80, 80),  cv2.FONT_HERSHEY_SIMPLEX, 1.5, (0, 255, 200), 3)
-    cv2.putText(img, f"Total time:  {int(total_time)} s", (80, 170), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), 2)
-    cv2.putText(img, f"Bad posture: {int(bad_time)} s ({pct} %)", (80, 220), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 180, 255), 2)
-    cv2.putText(img, "Press any key to continue", (80, 310), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (180, 180, 255), 1)
+    img[:] = (12, 18, 28)
+    for i in range(380):
+        img[i, :] = (
+            12 + int(i * 0.04),
+            18 + int(i * 0.06),
+            28 + int(i * 0.08)
+        )
+
+    # Modern styled stats display
+    cv2.putText(img, "SESSION COMPLETE", (180, 70), cv2.FONT_HERSHEY_DUPLEX, 1.2, (0, 220, 220), 3)
+    
+    # Stats box
+    cv2.rectangle(img, (60, 110), (660, 280), (20, 25, 35), -1)
+    cv2.rectangle(img, (60, 110), (660, 280), (0, 220, 220), 2)
+    
+    cv2.putText(img, "Total Time", (100, 160), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (140, 150, 170), 1)
+    cv2.putText(img, f"{int(total_time)} seconds", (100, 195), cv2.FONT_HERSHEY_DUPLEX, 1.0, (250, 250, 255), 2)
+    
+    cv2.putText(img, "Bad Posture", (400, 160), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (140, 150, 170), 1)
+    cv2.putText(img, f"{int(bad_time)} s ({pct}%)", (400, 195), cv2.FONT_HERSHEY_DUPLEX, 1.0, (255, 160, 80), 2)
+    
+    cv2.putText(img, "Press any key to continue", (230, 330), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (140, 150, 170), 1)
     cv2.namedWindow("Tracking Results", cv2.WINDOW_NORMAL)
     cv2.resizeWindow("Tracking Results", 720, 380)
     cv2.imshow("Tracking Results", img)
