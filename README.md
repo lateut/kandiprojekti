@@ -24,7 +24,7 @@ Jos mallitiedostoa ei löydy, sovellus ei käynnisty ja näyttää virheilmoituk
 
 3. Sovelluksen käynnistäminen 
 Avaa komentorivi tai terminaali sovelluksen kansiossa ja suorita ohjelma komennolla:
-python posture_checker.py 
+- python posture_checker.py 
 
 Jos tiedoston nimi on eri, käytä oman Python-tiedostosi nimeä. 
 Käynnistyksen jälkeen avautuu aloitusvalikko.
